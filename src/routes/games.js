@@ -1,0 +1,2 @@
+import { Router } from 'express';import { auth } from '../middleware/auth.js';import { Game } from '../models/Game.js';
+const router=Router();router.get('/:id',auth,async(req,res,next)=>{try{const g=await Game.findOne({_id:req.params.id,'players.user':req.user.sub}).populate('players.user','username');if(!g)return res.status(404).json({error:'Game not found'});res.json({game:g});}catch(e){next(e);}});export default router;

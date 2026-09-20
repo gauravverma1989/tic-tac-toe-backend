@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { body, validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { User } from '../models/User.js';
+import { env } from '../config/env.js';
+const router=Router();
+const validate=(req,res,next)=>{const e=validationResult(req);if(!e.isEmpty())return res.status(400).json({error:'Invalid input',details:e.array().map(x=>x.msg)});next();};
+const tokenFor=u=>jwt.sign({sub:u._id.toString(),username:u.username},env.JWT_SECRET,{expiresIn:env.JWT_EXPIRES_IN});
+router.post('/register',[body('username').isAlphanumeric().isLength({min:3,max:24}),body('email').isEmail().normalizeEmail(),body('password').isLength({min:10,max:128})],validate,async(req,res,next)=>{try{const {username,email,password}=req.body;const exists=await User.exists({$or:[{username},{email}]});if(exists)return res.status(409).json({error:'Username or email already in use'});const passwordHash=await bcrypt.hash(password,12);const user=await User.create({username,email,passwordHash});res.status(201).json({token:tokenFor(user),user});}catch(e){next(e);}});
+router.post('/login',[body('email').isEmail().normalizeEmail(),body('password').isString().isLength({min:1,max:128})],validate,async(req,res,next)=>{try{const u=await User.findOne({email:req.body.email}).select('+passwordHash');if(!u||!u.active||!(await bcrypt.compare(req.body.password,u.passwordHash)))return res.status(401).json({error:'Invalid credentials'});res.json({token:tokenFor(u),user:u});}catch(e){next(e);}});
+export default router;
